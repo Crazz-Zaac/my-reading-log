@@ -1,0 +1,185 @@
+name: Update Reading Data from Google Sheets
+
+on:
+  # Run daily at 6 AM UTC
+  schedule:
+    - cron: '0 6 * * *'
+  
+  # Allow manual triggering
+  workflow_dispatch:
+    inputs:
+      sheet_id:
+        description: 'Google Sheet ID (optional, uses default if not provided)'
+        required: false
+        type: string
+      force_update:
+        description: 'Force update even if no changes detected'
+        required: false
+        type: boolean
+        default: false
+
+permissions:
+  contents: write
+  pages: write
+  id-token: write
+
+jobs:
+  update-data:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+      with:
+        token: ${{ secrets.GITHUB_TOKEN }}
+    
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.11'
+    
+    - name: Install Python dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install -r scripts/requirements.txt
+    
+    - name: Fetch data from Google Sheets
+      env:
+        GOOGLE_SHEETS_API_KEY: ${{ secrets.GOOGLE_SHEETS_API_KEY }}
+        GOOGLE_SHEET_ID: ${{ secrets.GOOGLE_SHEET_ID }}
+      run: |
+        # Use input sheet ID if provided, otherwise use secret
+        SHEET_ID="${{ github.event.inputs.sheet_id || env.GOOGLE_SHEET_ID }}"
+        
+        if [ -z "$SHEET_ID" ]; then
+          echo "❌ Error: No Google Sheet ID provided"
+          echo "Please set GOOGLE_SHEET_ID secret or provide sheet_id input"
+          exit 1
+        fi
+        
+        echo "🔄 Fetching data from Google Sheet: $SHEET_ID"
+        
+        # Run the fetch script
+        python scripts/fetch_google_sheets.py \
+          --sheet-id "$SHEET_ID" \
+          --output-file src/data/readingData.js \
+          ${GOOGLE_SHEETS_API_KEY:+--api-key "$GOOGLE_SHEETS_API_KEY"}
+    
+    - name: Check for changes
+      id: check_changes
+      run: |
+        # Check if there are any changes to commit
+        if git diff --quiet src/data/readingData.js; then
+          echo "No changes detected in reading data"
+          echo "has_changes=false" >> $GITHUB_OUTPUT
+        else
+          echo "Changes detected in reading data"
+          echo "has_changes=true" >> $GITHUB_OUTPUT
+        fi
+        
+        # Show the diff for debugging
+        echo "📊 Data changes:"
+        git diff --stat src/data/readingData.js || echo "No changes"
+    
+    - name: Commit and push changes
+      if: steps.check_changes.outputs.has_changes == 'true' || github.event.inputs.force_update == 'true'
+      run: |
+        # Configure git
+        git config --local user.email "action@github.com"
+        git config --local user.name "GitHub Action"
+        
+        # Add and commit changes
+        git add src/data/readingData.js
+        
+        # Create commit message with timestamp and entry count
+        ENTRY_COUNT=$(grep -o '"id"' src/data/readingData.js | wc -l)
+        TIMESTAMP=$(date -u +"%Y-%m-%d %H:%M UTC")
+        
+        git commit -m "📚 Update reading data from Google Sheets
+        
+        - Updated: $TIMESTAMP
+        - Total entries: $ENTRY_COUNT
+        - Source: Google Sheets automation
+        
+        [skip ci]"
+        
+        # Push changes
+        git push
+        
+        echo "✅ Successfully updated reading data"
+    
+    - name: Setup Node.js
+      if: steps.check_changes.outputs.has_changes == 'true' || github.event.inputs.force_update == 'true'
+      uses: actions/setup-node@v4
+      with:
+        node-version: '18'
+        cache: 'npm'
+    
+    - name: Install dependencies and build
+      if: steps.check_changes.outputs.has_changes == 'true' || github.event.inputs.force_update == 'true'
+      run: |
+        npm ci
+        npm run build
+    
+    - name: Setup Pages
+      if: steps.check_changes.outputs.has_changes == 'true' || github.event.inputs.force_update == 'true'
+      uses: actions/configure-pages@v4
+    
+    - name: Upload artifact
+      if: steps.check_changes.outputs.has_changes == 'true' || github.event.inputs.force_update == 'true'
+      uses: actions/upload-pages-artifact@v3
+      with:
+        path: './dist'
+    
+    - name: Deploy to GitHub Pages
+      if: steps.check_changes.outputs.has_changes == 'true' || github.event.inputs.force_update == 'true'
+      id: deployment
+      uses: actions/deploy-pages@v4
+    
+    - name: Create summary
+      run: |
+        echo "## 📚 Reading Data Update Summary" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        
+        if [ "${{ steps.check_changes.outputs.has_changes }}" == "true" ] || [ "${{ github.event.inputs.force_update }}" == "true" ]; then
+          ENTRY_COUNT=$(grep -o '"id"' src/data/readingData.js | wc -l)
+          echo "✅ **Status**: Data updated successfully" >> $GITHUB_STEP_SUMMARY
+          echo "📊 **Total entries**: $ENTRY_COUNT" >> $GITHUB_STEP_SUMMARY
+          echo "🕒 **Updated**: $(date -u +"%Y-%m-%d %H:%M UTC")" >> $GITHUB_STEP_SUMMARY
+          echo "🔗 **Website**: ${{ steps.deployment.outputs.page_url }}" >> $GITHUB_STEP_SUMMARY
+        else
+          echo "ℹ️ **Status**: No changes detected" >> $GITHUB_STEP_SUMMARY
+          echo "📊 **Action**: Skipped deployment" >> $GITHUB_STEP_SUMMARY
+        fi
+        
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo "### 🔧 Configuration" >> $GITHUB_STEP_SUMMARY
+        echo "- **Sheet ID**: ${{ github.event.inputs.sheet_id || 'Using default from secrets' }}" >> $GITHUB_STEP_SUMMARY
+        echo "- **API Key**: ${{ secrets.GOOGLE_SHEETS_API_KEY && 'Configured' || 'Using public access' }}" >> $GITHUB_STEP_SUMMARY
+        echo "- **Trigger**: ${{ github.event_name }}" >> $GITHUB_STEP_SUMMARY
+
+  # Separate job to handle failures and notifications
+  notify-failure:
+    runs-on: ubuntu-latest
+    needs: update-data
+    if: failure()
+    
+    steps:
+    - name: Create failure summary
+      run: |
+        echo "## ❌ Reading Data Update Failed" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo "The automated update from Google Sheets failed. Please check:" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo "1. **Google Sheet Access**: Ensure the sheet is publicly accessible or API key is valid" >> $GITHUB_STEP_SUMMARY
+        echo "2. **Sheet ID**: Verify the GOOGLE_SHEET_ID secret is correct" >> $GITHUB_STEP_SUMMARY
+        echo "3. **Sheet Format**: Check that column headers match expected format" >> $GITHUB_STEP_SUMMARY
+        echo "4. **Data Validation**: Ensure all required fields are present" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo "### 🔍 Troubleshooting" >> $GITHUB_STEP_SUMMARY
+        echo "- Check the workflow logs above for specific error messages" >> $GITHUB_STEP_SUMMARY
+        echo "- Verify your Google Sheet structure matches the documentation" >> $GITHUB_STEP_SUMMARY
+        echo "- Test the script locally: \`python scripts/fetch_google_sheets.py --sheet-id YOUR_ID\`" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo "📖 **Documentation**: See GOOGLE_FORMS_SETUP.md for detailed setup instructions" >> $GITHUB_STEP_SUMMARY
+
