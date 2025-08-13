@@ -3,7 +3,7 @@ name: Update Reading Data from Google Sheets
 on:
   # Run daily at 6 AM UTC
   schedule:
-    - cron: '0 6 * * *'
+    - cron: '3 22 * * *'
   
   # Allow manual triggering
   workflow_dispatch:
