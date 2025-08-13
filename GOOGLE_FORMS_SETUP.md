@@ -111,6 +111,8 @@ The form will automatically create column headers. You may want to rename them t
 5. Restrict the API key to Google Sheets API only
 6. Copy the API key for later use
 
+Tutorial here: [Google Sheets API Setup by MIT App Inventor](https://ai2.appinventor.mit.edu/reference/other/googlesheets-api-setup.html)
+
 ## Step 3: Set Up GitHub Actions
 
 ### 3.1 Add Repository Secrets
