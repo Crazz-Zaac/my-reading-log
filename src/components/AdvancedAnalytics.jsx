@@ -185,27 +185,27 @@ export const AdvancedAnalytics = ({ data }) => {
   }, [data]);
 
   // Word cloud data from key insights
-  const insightWords = useMemo(() => {
-    const words = {};
+    // Word cloud data from tags
+  const wordCloudData = useMemo(() => {
+    const tagCounts = {};
     data.forEach(item => {
-      if (item.keyInsights) {
-        const cleanText = item.keyInsights
-          .toLowerCase()
-          .replace(/[^\w\s]/g, ' ')
-          .split(/\s+/)
-          .filter(word => word.length > 3 && !['this', 'that', 'with', 'from', 'they', 'have', 'been', 'will', 'more', 'than', 'each', 'when', 'what', 'your', 'their'].includes(word));
-        
-        cleanText.forEach(word => {
-          words[word] = (words[word] || 0) + 1;
+      if (item.tags && Array.isArray(item.tags)) {
+        item.tags.forEach(tag => {
+          // Clean and normalize tag
+          const cleanTag = tag.trim();
+          if (cleanTag) {
+            tagCounts[cleanTag] = (tagCounts[cleanTag] || 0) + 1;
+          }
         });
       }
     });
     
-    return Object.entries(words)
+    return Object.entries(tagCounts)
       .sort(([,a], [,b]) => b - a)
-      .slice(0, 20)
+      .slice(0, 20) // Show top 20 tags
       .map(([word, count]) => ({ word, count }));
   }, [data]);
+
 
   const CustomTooltip = ({ active, payload, label }) => {
     if (active && payload && payload.length) {
