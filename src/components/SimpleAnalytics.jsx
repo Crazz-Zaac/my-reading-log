@@ -110,26 +110,25 @@ export const SimpleAnalytics = ({ data }) => {
 
   // Word cloud data from key insights
   const wordCloudData = useMemo(() => {
-    const words = {};
+    const tagCounts = {};
     data.forEach(item => {
-      if (item.keyInsights) {
-        const cleanText = item.keyInsights
-          .toLowerCase()
-          .replace(/[^\w\s]/g, ' ')
-          .split(/\s+/)
-          .filter(word => word.length > 3 && !['this', 'that', 'with', 'from', 'they', 'have', 'been', 'will', 'were', 'said', 'each', 'which', 'their', 'time', 'more', 'very', 'what', 'know', 'just', 'first', 'into', 'over', 'think', 'also', 'your', 'work', 'life', 'only', 'new', 'years', 'way', 'may', 'say', 'come', 'its', 'now', 'find', 'long', 'down', 'day', 'did', 'get', 'has', 'him', 'his', 'how', 'man', 'old', 'see', 'two', 'who', 'boy', 'did', 'its', 'let', 'put', 'say', 'she', 'too', 'use'].includes(word));
-        
-        cleanText.forEach(word => {
-          words[word] = (words[word] || 0) + 1;
+      if (item.tags && Array.isArray(item.tags)) {
+        item.tags.forEach(tag => {
+          // Clean and normalize tag
+          const cleanTag = tag.trim();
+          if (cleanTag) {
+            tagCounts[cleanTag] = (tagCounts[cleanTag] || 0) + 1;
+          }
         });
       }
     });
     
-    return Object.entries(words)
+    return Object.entries(tagCounts)
       .sort(([,a], [,b]) => b - a)
-      .slice(0, 15)
+      .slice(0, 20) // Show top 20 tags
       .map(([word, count]) => ({ word, count }));
   }, [data]);
+
 
   // Basic stats
   const stats = useMemo(() => {
