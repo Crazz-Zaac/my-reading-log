@@ -10,6 +10,45 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { BookOpen, Calendar, Star, Tag, TrendingUp, Filter, Search, BarChart3 } from 'lucide-react';
 import './App.css';
 
+// ExpandableContent Component
+const ExpandableContent = ({ content, maxLength = 200 }) => {
+  const [isExpanded, setIsExpanded] = useState(false);
+  
+  if (!content || content.length <= maxLength) {
+    return <p className="text-sm leading-relaxed">{content}</p>;
+  }
+  
+  const truncatedText = content.slice(0, maxLength) + '...';
+  
+  return (
+    <div>
+      <p className="text-sm leading-relaxed">
+        {isExpanded ? content : truncatedText}
+      </p>
+      <button
+        onClick={() => setIsExpanded(!isExpanded)}
+        className="text-blue-600 hover:text-blue-800 text-xs font-medium mt-1 flex items-center gap-1 transition-colors"
+      >
+        {isExpanded ? (
+          <>
+            <span>Read less</span>
+            <svg xmlns="http://www.w3.org/2000/svg" className="h-3 w-3" viewBox="0 0 20 20" fill="currentColor">
+              <path fillRule="evenodd" d="M14.707 12.707a1 1 0 01-1.414 0L10 9.414l-3.293 3.293a1 1 0 01-1.414-1.414l4-4a1 1 0 011.414 0l4 4a1 1 0 010 1.414z" clipRule="evenodd" />
+            </svg>
+          </>
+        ) : (
+          <>
+            <span>Read more</span>
+            <svg xmlns="http://www.w3.org/2000/svg" className="h-3 w-3" viewBox="0 0 20 20" fill="currentColor">
+              <path fillRule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clipRule="evenodd" />
+            </svg>
+          </>
+        )}
+      </button>
+    </div>
+  );
+};
+
 function App() {
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedStatus, setSelectedStatus] = useState('all');
@@ -314,7 +353,7 @@ function App() {
                             <h4 className="font-semibold text-blue-900 mb-2 flex items-center gap-2">
                               💡 Key Insights
                             </h4>
-                            <p className="text-blue-800 text-sm leading-relaxed">{item.keyInsights}</p>
+                            <ExpandableContent content={item.keyInsights} />
                           </div>
                         )}
                         
@@ -323,7 +362,7 @@ function App() {
                             <h4 className="font-semibold text-green-900 mb-2 flex items-center gap-2">
                               🤔 Personal Reflection
                             </h4>
-                            <p className="text-green-800 text-sm leading-relaxed">{item.personalReflection}</p>
+                            <ExpandableContent content={item.personalReflection} />
                           </div>
                         )}
                         
@@ -378,7 +417,9 @@ function App() {
                     {item.rating && renderStars(item.rating)}
                     
                     {item.keyInsights && (
-                      <p className="text-sm text-gray-700 line-clamp-3">{item.keyInsights}</p>
+                      <div className="text-sm text-gray-700">
+                        <ExpandableContent content={item.keyInsights} maxLength={100} />
+                      </div>
                     )}
                     
                     <div className="flex flex-wrap gap-1">
@@ -409,4 +450,3 @@ function App() {
 }
 
 export default App;
-
